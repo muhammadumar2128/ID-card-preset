@@ -11,7 +11,10 @@ import {
   ArrowRight,
   Info,
   Target,
-  Download
+  Download,
+  Palette,
+  Sun,
+  Moon
 } from 'lucide-react';
 import CornerSelectorCanvas from './components/CornerSelectorCanvas';
 import ImageEnhancers from './components/ImageEnhancers';
@@ -24,7 +27,26 @@ import {
   applyImageEnhancements
 } from './utils/imageProcessing';
 
+const THEMES = [
+  { id: 'indigo', name: 'Indigo Cyan', color: '#6366f1' },
+  { id: 'emerald', name: 'Emerald', color: '#10b981' },
+  { id: 'crimson', name: 'Crimson', color: '#f43f5e' },
+  { id: 'violet', name: 'Violet', color: '#a855f7' },
+  { id: 'amber', name: 'Amber Gold', color: '#f59e0b' },
+  { id: 'ocean', name: 'Ocean Blue', color: '#0ea5e9' },
+  { id: 'light', name: 'Light Mode', color: '#f8fafc', isLight: true }
+];
+
 export default function App() {
+  const [currentTheme, setCurrentTheme] = useState(() => {
+    return localStorage.getItem('app_theme') || 'indigo';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    localStorage.setItem('app_theme', currentTheme);
+  }, [currentTheme]);
+
   const [selectedPresetKey, setSelectedPresetKey] = useState('PRESET_3_3_X_2_2');
   const activePreset = CARD_PRESETS[selectedPresetKey];
 
@@ -121,25 +143,53 @@ export default function App() {
     }
   }, [backImageObj, backCorners, activePreset]);
 
+  // Enhancements application
   useEffect(() => {
-    if (!frontWarpedCanvas) return;
-    let animId = requestAnimationFrame(() => {
+    if (frontWarpedCanvas) {
       const enhanced = applyImageEnhancements(frontWarpedCanvas, frontOptions);
       setFrontEnhancedCanvas(enhanced);
-    });
-    return () => cancelAnimationFrame(animId);
+    }
   }, [frontWarpedCanvas, frontOptions]);
 
   useEffect(() => {
-    if (!backWarpedCanvas) return;
-    let animId = requestAnimationFrame(() => {
+    if (backWarpedCanvas) {
       const enhanced = applyImageEnhancements(backWarpedCanvas, backOptions);
       setBackEnhancedCanvas(enhanced);
-    });
-    return () => cancelAnimationFrame(animId);
+    }
   }, [backWarpedCanvas, backOptions]);
 
-  const loadSampleDemoCard = (side) => {
+  const rotateCurrentSideImage = (degrees) => {
+    const currentImg = activeSide === 'front' ? frontImageObj : backImageObj;
+    if (!currentImg) return;
+
+    const c = document.createElement('canvas');
+    if (degrees === 90 || degrees === 270) {
+      c.width = currentImg.height;
+      c.height = currentImg.width;
+    } else {
+      c.width = currentImg.width;
+      c.height = currentImg.height;
+    }
+    const ctx = c.getContext('2d');
+    ctx.translate(c.width / 2, c.height / 2);
+    ctx.rotate((degrees * Math.PI) / 180);
+    ctx.drawImage(currentImg, -currentImg.width / 2, -currentImg.height / 2);
+
+    const rotatedImg = new Image();
+    rotatedImg.onload = () => {
+      const newCorners = detectCardCorners(rotatedImg);
+      if (activeSide === 'front') {
+        setFrontImageObj(rotatedImg);
+        setFrontCorners(newCorners);
+      } else {
+        setBackImageObj(rotatedImg);
+        setBackCorners(newCorners);
+      }
+    };
+    rotatedImg.src = c.toDataURL();
+  };
+
+  const loadSampleIdCard = (side) => {
     const canvas = document.createElement('canvas');
     canvas.width = 1024;
     canvas.height = 650;
@@ -239,44 +289,122 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <header className="glass-panel" style={{ borderRadius: '0', borderLeft: 'none', borderRight: 'none', borderTop: 'none', padding: '16px 28px' }}>
+      <header className="glass-panel" style={{ borderRadius: '0', borderLeft: 'none', borderRight: 'none', borderTop: 'none', padding: '14px 24px' }}>
         <div style={{ maxWidth: '1380px', margin: '0 auto', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+          
+          {/* Logo & Title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #6366f1, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 20px rgba(99,102,241,0.5)' }}>
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: 'var(--shadow-glow)'
+            }}>
               <CreditCard color="#ffffff" size={24} />
             </div>
             <div>
-              <h1 style={{ fontSize: '1.4rem', fontWeight: '800', background: 'linear-gradient(90deg, #ffffff, #a5b4fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              <h1 style={{
+                fontSize: '1.35rem',
+                fontWeight: '800',
+                background: 'linear-gradient(90deg, var(--text-main), var(--accent-secondary))',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent'
+              }}>
                 ID Card Scanner Studio
               </h1>
-              <span className="badge badge-primary" style={{ marginTop: '2px' }}>
-                3.3" × 2.2" @ 300 DPI Preset Engine
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '3px' }}>
+                <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>
+                  3.3" × 2.2" @ 300 DPI Preset
+                </span>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '0.75rem',
+                  fontWeight: '700',
+                  background: 'var(--bg-secondary)',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--text-muted)'
+                }}>
+                  <Sparkles size={11} color="var(--accent-secondary)" />
+                  Powered by <span style={{ background: 'linear-gradient(90deg, var(--accent-primary), var(--accent-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Lunar AI</span>
+                </span>
+              </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Card Format Preset:</label>
-            <select
-              value={selectedPresetKey}
-              onChange={(e) => setSelectedPresetKey(e.target.value)}
-              style={{
-                background: 'rgba(15, 23, 42, 0.8)',
-                color: 'var(--text-main)',
-                border: '1px solid var(--accent-primary)',
-                padding: '8px 14px',
-                borderRadius: '8px',
-                fontSize: '0.9rem',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              {Object.entries(CARD_PRESETS).map(([key, preset]) => (
-                <option key={key} value={key}>
-                  {preset.name} ({preset.widthPx} × {preset.heightPx} px)
-                </option>
-              ))}
-            </select>
+          {/* Right Controls: Theme Selector + Card Preset */}
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+            
+            {/* Theme Swatches */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'var(--bg-secondary)',
+              padding: '6px 10px',
+              borderRadius: '12px',
+              border: '1px solid var(--border-color)'
+            }}>
+              <Palette size={16} color="var(--text-muted)" style={{ marginRight: '4px' }} />
+              <div style={{ display: 'flex', gap: '5px' }}>
+                {THEMES.map((theme) => {
+                  const isActive = currentTheme === theme.id;
+                  return (
+                    <button
+                      key={theme.id}
+                      onClick={() => setCurrentTheme(theme.id)}
+                      title={`${theme.name} Theme`}
+                      style={{
+                        width: '22px',
+                        height: '22px',
+                        borderRadius: '50%',
+                        backgroundColor: theme.color,
+                        border: isActive ? '2px solid #ffffff' : (theme.isLight ? '1px solid #94a3b8' : '1px solid transparent'),
+                        boxShadow: isActive ? '0 0 10px var(--accent-primary)' : 'none',
+                        cursor: 'pointer',
+                        transform: isActive ? 'scale(1.2)' : 'scale(1)',
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        padding: 0
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Preset Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <select
+                value={selectedPresetKey}
+                onChange={(e) => setSelectedPresetKey(e.target.value)}
+                style={{
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-main)',
+                  border: '1px solid var(--border-color)',
+                  padding: '8px 12px',
+                  borderRadius: '10px',
+                  fontSize: '0.88rem',
+                  fontWeight: '500',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  boxShadow: 'var(--shadow-card)'
+                }}
+              >
+                {Object.entries(CARD_PRESETS).map(([key, preset]) => (
+                  <option key={key} value={key}>
+                    {preset.name} ({preset.widthPx} × {preset.heightPx} px)
+                  </option>
+                ))}
+              </select>
+            </div>
+
           </div>
         </div>
       </header>
@@ -505,6 +633,17 @@ export default function App() {
           onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
         />
       </main>
+
+      <footer className="glass-panel" style={{ borderRadius: '0', borderLeft: 'none', borderRight: 'none', borderBottom: 'none', padding: '16px 24px', marginTop: '40px', textAlign: 'center' }}>
+        <div style={{ maxWidth: '1380px', margin: '0 auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          <span>ID Card Scanner & Multi-Copy Preset Studio</span>
+          <span>•</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: '600', color: 'var(--text-main)' }}>
+            <Sparkles size={14} color="var(--accent-secondary)" />
+            Powered by <strong style={{ background: 'linear-gradient(90deg, var(--accent-primary), var(--accent-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Lunar AI</strong>
+          </span>
+        </div>
+      </footer>
     </div>
   );
 }

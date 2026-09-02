@@ -49,7 +49,7 @@ export default function ImageEnhancers({ options, onChange, onReset }) {
             fontSize: '0.85rem',
             gridColumn: 'span 2',
             background: (localOptions.mode === 'magic-color' || localOptions.mode === 'magic')
-              ? 'linear-gradient(135deg, #10b981, #06b6d4)'
+              ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))'
               : ''
           }}
         >
