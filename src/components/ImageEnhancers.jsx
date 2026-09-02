@@ -121,20 +121,20 @@ export default function ImageEnhancers({ options, onChange, onReset }) {
         />
       </div>
 
-      {/* Background White Normalization */}
+      {/* Background White & Shadow Erase */}
       <div className="slider-group">
         <div className="slider-header">
           <span>
-            <ShieldAlert size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
-            Background Clean (Paper White)
+            <ShieldAlert size={14} style={{ verticalAlign: 'middle', marginRight: '4px', color: 'var(--accent-secondary)' }} />
+            Phone Shadow Erase & Background Bleach
           </span>
-          <span className="slider-value">{localOptions.shadowRemoval ?? 60}%</span>
+          <span className="slider-value" style={{ color: 'var(--accent-secondary)' }}>{localOptions.shadowRemoval ?? 70}%</span>
         </div>
         <input
           type="range"
           min="0"
           max="100"
-          value={localOptions.shadowRemoval ?? 60}
+          value={localOptions.shadowRemoval ?? 70}
           onChange={(e) => updateOption('shadowRemoval', parseInt(e.target.value))}
         />
       </div>

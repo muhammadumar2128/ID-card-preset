@@ -676,26 +676,31 @@ export function applyImageEnhancements(inputCanvas, options = {}) {
     const bg = bgLum[i] || 200;
 
     if (mode === 'magic-color' || mode === 'magic') {
-      const illuminationRatio = Math.max(0.25, bg / 245);
-      const lightCorrected = Math.min(255, l / ((1 - sWeight) + sWeight * illuminationRatio));
-      
-      const gain = l > 0 ? lightCorrected / l : 1;
-      r = Math.min(255, r * gain);
-      g = Math.min(255, g * gain);
-      b = Math.min(255, b * gain);
+      // Local Retinex illumination normalization (Paper White Normalization)
+      const targetWhite = 248.0;
+      const shadowGain = Math.pow(targetWhite / Math.max(35.0, bg), sWeight);
+
+      // Normalize color channels
+      r = Math.min(255, Math.max(0, r * shadowGain));
+      g = Math.min(255, Math.max(0, g * shadowGain));
+      b = Math.min(255, Math.max(0, b * shadowGain));
 
       const currentLum = 0.299 * r + 0.587 * g + 0.114 * b;
-      if (currentLum < 200 && textDarkening > 0) {
-        const darkCurve = Math.pow(currentLum / 200, darkMultiplier);
-        const darkScale = (darkCurve * 200) / Math.max(currentLum, 1);
-        r = Math.min(255, Math.max(0, r * darkScale));
-        g = Math.min(255, Math.max(0, g * darkScale));
-        b = Math.min(255, Math.max(0, b * darkScale));
-      } else if (currentLum >= 200 && shadowRemoval > 30) {
-        const boost = ((currentLum - 200) / 55) * 15;
-        r = Math.min(255, r + boost);
-        g = Math.min(255, g + boost);
-        b = Math.min(255, b + boost);
+      
+      // Text & Ink Darkness Curve (Keeps text razor-sharp black while bleaching shadow edges)
+      if (currentLum < 210 && textDarkening > 0) {
+        const normL = currentLum / 210.0;
+        const inkCurve = Math.pow(normL, darkMultiplier);
+        const inkScale = (inkCurve * 210.0) / Math.max(currentLum, 1);
+        r = Math.min(255, Math.max(0, r * inkScale));
+        g = Math.min(255, Math.max(0, g * inkScale));
+        b = Math.min(255, Math.max(0, b * inkScale));
+      } else if (currentLum >= 210 && shadowRemoval > 20) {
+        // Bleach background paper to clean white
+        const bleach = ((currentLum - 210) / 45) * 18 * sWeight;
+        r = Math.min(255, r + bleach);
+        g = Math.min(255, g + bleach);
+        b = Math.min(255, b + bleach);
       }
 
       if (saturation !== 0) {
@@ -717,27 +722,35 @@ export function applyImageEnhancements(inputCanvas, options = {}) {
       }
 
     } else if (mode === 'magic-bw' || mode === 'sauvola' || mode === 'bw') {
-      const localBg = Math.max(bg, 50);
-      let norm = (l / localBg) * 220;
+      const localBg = Math.max(bg, 35);
+      // Normalized contrast ratio
+      const ratio = l / localBg;
       
       let finalMono;
-      if (norm < 165) {
-        finalMono = Math.pow(norm / 165, darkMultiplier) * 80;
-        finalMono = contrastFactor * (finalMono - 128) + 128;
+      if (ratio < 0.78) {
+        // Foreground text / QR code / numbers -> Deep bold black
+        const textDepth = Math.pow(ratio / 0.78, darkMultiplier) * 60;
+        finalMono = contrastFactor * (textDepth - 128) + 128;
       } else {
-        finalMono = 240 + ((norm - 165) / 90) * 15;
+        // Background paper -> Bleached paper white
+        finalMono = 245 + ((ratio - 0.78) / 0.22) * 10;
       }
 
       finalMono = Math.min(255, Math.max(0, finalMono + brightness));
       r = g = b = finalMono;
 
     } else if (mode === 'grayscale') {
-      const illuminationRatio = Math.max(0.3, bg / 240);
-      let grayVal = Math.min(255, l / ((1 - sWeight) + sWeight * illuminationRatio));
+      const targetWhite = 248.0;
+      const shadowGain = Math.pow(targetWhite / Math.max(35.0, bg), sWeight);
+      let grayVal = Math.min(255, Math.max(0, l * shadowGain));
 
-      if (grayVal < 190 && textDarkening > 0) {
-        const darkCurve = Math.pow(grayVal / 190, darkMultiplier);
-        grayVal = darkCurve * 190;
+      if (grayVal < 200 && textDarkening > 0) {
+        const normL = grayVal / 200.0;
+        const darkCurve = Math.pow(normL, darkMultiplier);
+        grayVal = darkCurve * 200.0;
+      } else if (grayVal >= 200 && shadowRemoval > 20) {
+        const bleach = ((grayVal - 200) / 55) * 18 * sWeight;
+        grayVal += bleach;
       }
 
       if (contrast !== 0) {
@@ -751,12 +764,11 @@ export function applyImageEnhancements(inputCanvas, options = {}) {
       r = g = b = grayVal;
 
     } else if (mode === 'color') {
-      if (bg > 20) {
-        const factor = Math.min(255, 230 / bg);
-        r = Math.min(255, r * ((1 - sWeight) + sWeight * factor));
-        g = Math.min(255, g * ((1 - sWeight) + sWeight * factor));
-        b = Math.min(255, b * ((1 - sWeight) + sWeight * factor));
-      }
+      const targetWhite = 248.0;
+      const shadowGain = Math.pow(targetWhite / Math.max(35.0, bg), sWeight);
+      r = Math.min(255, Math.max(0, r * shadowGain));
+      g = Math.min(255, Math.max(0, g * shadowGain));
+      b = Math.min(255, Math.max(0, b * shadowGain));
 
       if (saturation !== 0) {
         const avg = (r + g + b) / 3;
@@ -792,7 +804,12 @@ export function applyImageEnhancements(inputCanvas, options = {}) {
   return outputCanvas;
 }
 
-export function computeIlluminationMap(data, width, height, blockSize) {
+/**
+ * ADVANCED ILLUMINATION FIELD ESTIMATION (Percentile Background Surface Estimation)
+ * Accurately models uneven mobile phone shadows, hand shadows, and flash glare.
+ * Uses 90th percentile luminance sampling per block to isolate paper background from dark text/QR codes.
+ */
+export function computeIlluminationMap(data, width, height, blockSize = 32) {
   const totalPixels = width * height;
   const lumMap = new Float32Array(totalPixels);
 
@@ -801,41 +818,54 @@ export function computeIlluminationMap(data, width, height, blockSize) {
     lumMap[i] = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
   }
 
-  const gridW = Math.ceil(width / blockSize);
-  const gridH = Math.ceil(height / blockSize);
+  const effectiveBlockSize = Math.max(16, Math.min(64, blockSize));
+  const gridW = Math.ceil(width / effectiveBlockSize);
+  const gridH = Math.ceil(height / effectiveBlockSize);
   const grid = new Float32Array(gridW * gridH);
+
+  const blockValues = new Float32Array(effectiveBlockSize * effectiveBlockSize);
 
   for (let gy = 0; gy < gridH; gy++) {
     for (let gx = 0; gx < gridW; gx++) {
-      let sum = 0;
       let count = 0;
-      const startX = gx * blockSize;
-      const endX = Math.min(width, (gx + 1) * blockSize);
-      const startY = gy * blockSize;
-      const endY = Math.min(height, (gy + 1) * blockSize);
+      const startX = gx * effectiveBlockSize;
+      const endX = Math.min(width, (gx + 1) * effectiveBlockSize);
+      const startY = gy * effectiveBlockSize;
+      const endY = Math.min(height, (gy + 1) * effectiveBlockSize);
 
       for (let y = startY; y < endY; y++) {
+        const rowOffset = y * width;
         for (let x = startX; x < endX; x++) {
-          sum += lumMap[y * width + x];
-          count++;
+          blockValues[count++] = lumMap[rowOffset + x];
         }
       }
-      grid[gy * gridW + gx] = count > 0 ? sum / count : 128;
+
+      if (count > 0) {
+        // Sort block to find the 88th percentile (true paper color without text/ink)
+        const slice = blockValues.subarray(0, count);
+        slice.sort();
+        const pIndex = Math.min(count - 1, Math.floor(count * 0.88));
+        grid[gy * gridW + gx] = slice[pIndex];
+      } else {
+        grid[gy * gridW + gx] = 200;
+      }
     }
   }
 
+  // Smooth Bilinear Upsampling of the background illumination surface
   const bgMap = new Float32Array(totalPixels);
   for (let y = 0; y < height; y++) {
-    const gy = y / blockSize;
-    const gy0 = Math.floor(gy);
+    const gy = (y / effectiveBlockSize) - 0.5;
+    const gy0 = Math.max(0, Math.floor(gy));
     const gy1 = Math.min(gridH - 1, gy0 + 1);
-    const dy = gy - gy0;
+    const dy = Math.max(0, Math.min(1, gy - gy0));
+    const rowOffset = y * width;
 
     for (let x = 0; x < width; x++) {
-      const gx = x / blockSize;
-      const gx0 = Math.floor(gx);
+      const gx = (x / effectiveBlockSize) - 0.5;
+      const gx0 = Math.max(0, Math.floor(gx));
       const gx1 = Math.min(gridW - 1, gx0 + 1);
-      const dx = gx - gx0;
+      const dx = Math.max(0, Math.min(1, gx - gx0));
 
       const v00 = grid[gy0 * gridW + gx0];
       const v10 = grid[gy0 * gridW + gx1];
@@ -845,7 +875,7 @@ export function computeIlluminationMap(data, width, height, blockSize) {
       const top = (1 - dx) * v00 + dx * v10;
       const bot = (1 - dx) * v01 + dx * v11;
 
-      bgMap[y * width + x] = (1 - dy) * top + dy * bot;
+      bgMap[rowOffset + x] = Math.max(30, (1 - dy) * top + dy * bot);
     }
   }
 
