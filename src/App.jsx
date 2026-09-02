@@ -91,6 +91,14 @@ export default function App() {
     });
   };
 
+  const triggerUpload = (side) => {
+    const inputRef = side === 'front' ? frontFileInputRef : backFileInputRef;
+    if (inputRef && inputRef.current) {
+      inputRef.current.value = '';
+      inputRef.current.click();
+    }
+  };
+
   const handleFileUpload = (file, side) => {
     if (!file) return;
     const reader = new FileReader();
@@ -101,14 +109,31 @@ export default function App() {
         if (side === 'front') {
           setFrontImageObj(img);
           setFrontCorners(autoDetectedCorners);
+          setActiveSide('front');
         } else {
           setBackImageObj(img);
           setBackCorners(autoDetectedCorners);
+          setActiveSide('back');
         }
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleReupload = (side) => {
+    if (side === 'front') {
+      setFrontImageObj(null);
+      setFrontCorners(null);
+      setFrontWarpedCanvas(null);
+      setFrontEnhancedCanvas(null);
+    } else {
+      setBackImageObj(null);
+      setBackCorners(null);
+      setBackWarpedCanvas(null);
+      setBackEnhancedCanvas(null);
+    }
+    triggerUpload(side);
   };
 
   const autoDetectCornersForCurrentSide = () => {
@@ -462,12 +487,9 @@ export default function App() {
                   border: '2px dashed var(--accent-primary)',
                   cursor: 'pointer'
                 }}
-                onClick={() => {
-                  if (activeSide === 'front') frontFileInputRef.current.click();
-                  else backFileInputRef.current.click();
-                }}
+                onClick={() => triggerUpload(activeSide)}
               >
-                <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+                <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'var(--border-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
                   <Upload size={32} color="var(--accent-primary)" />
                 </div>
                 <h3 style={{ fontSize: '1.4rem', marginBottom: '8px' }}>
@@ -478,14 +500,20 @@ export default function App() {
                 </p>
 
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                  <button className="btn btn-primary">
+                  <button
+                    className="btn btn-primary"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      triggerUpload(activeSide);
+                    }}
+                  >
                     <ImageIcon size={18} /> Upload Photo from Device
                   </button>
                   <button
                     className="btn btn-outline"
                     onClick={(e) => {
                       e.stopPropagation();
-                      loadSampleDemoCard(activeSide);
+                      loadSampleIdCard(activeSide);
                     }}
                   >
                     <Sparkles size={18} /> Test Smart NIC Sample
@@ -511,10 +539,7 @@ export default function App() {
                       </button>
                       <button
                         className="btn btn-secondary"
-                        onClick={() => {
-                          if (activeSide === 'front') setFrontImageObj(null);
-                          else setBackImageObj(null);
-                        }}
+                        onClick={() => handleReupload(activeSide)}
                         style={{ padding: '6px 12px', fontSize: '0.8rem' }}
                       >
                         <RotateCw size={14} /> Re-upload
@@ -567,7 +592,7 @@ export default function App() {
                       <Info size={16} color="var(--accent-secondary)" />
                       {activeSide === 'front'
                         ? 'Front side ready! Download JPEG or edit Back side.'
-                        : 'Both sides ready! Download 300 DPI JPEGs.'}
+                        : 'Both sides ready! Download 300 DPI JPEGs or Print.'}
                     </div>
 
                     <button
@@ -581,9 +606,9 @@ export default function App() {
                     <button
                       className="btn btn-primary"
                       onClick={() => setActiveSide('export')}
-                      style={{ width: '100%', background: 'linear-gradient(135deg, #6366f1, #06b6d4)' }}
+                      style={{ width: '100%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' }}
                     >
-                      <Printer size={18} /> Make 1 to 8 Copies on A4 Paper
+                      <Printer size={18} /> A4 Multi-Copy & Direct Print (8 Front & 8 Back)
                     </button>
 
                     {activeSide === 'front' ? (
@@ -615,14 +640,24 @@ export default function App() {
           ref={frontFileInputRef}
           accept="image/*"
           style={{ display: 'none' }}
-          onChange={(e) => handleFileUpload(e.target.files[0], 'front')}
+          onChange={(e) => {
+            if (e.target.files && e.target.files[0]) {
+              handleFileUpload(e.target.files[0], 'front');
+            }
+            e.target.value = '';
+          }}
         />
         <input
           type="file"
           ref={backFileInputRef}
           accept="image/*"
           style={{ display: 'none' }}
-          onChange={(e) => handleFileUpload(e.target.files[0], 'back')}
+          onChange={(e) => {
+            if (e.target.files && e.target.files[0]) {
+              handleFileUpload(e.target.files[0], 'back');
+            }
+            e.target.value = '';
+          }}
         />
 
         {/* Fail-safe Download Modal Lightbox */}

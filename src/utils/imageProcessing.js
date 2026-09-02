@@ -108,7 +108,7 @@ export function generateA4MultiCopyCanvas({
   backCanvas,
   presetInfo = CARD_PRESETS.PRESET_3_3_X_2_2,
   quantity = 8,
-  layoutMode = 'front', // 'front' | 'back' | 'paired'
+  layoutMode = 'front', // 'front' | 'back' | 'paired' | 'combined16'
   showCutLines = true,
   showLabel = true,
   duplexMirror = true // Matches physical back slot to front slot when flipped on long edge
@@ -124,6 +124,93 @@ export function generateA4MultiCopyCanvas({
   // Pure White Background Sheet
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, a4Width, a4Height);
+
+  // 16-card combined mode: 8 Fronts + 8 Backs on 1 Single A4 Sheet
+  if (layoutMode === 'combined16' || layoutMode === 'both16') {
+    const cardW16 = 530;
+    const cardH16 = 353;
+    const gapX16 = 70;
+    const gapY16 = 180;
+    const marginX16 = Math.round((a4Width - (4 * cardW16 + 3 * gapX16)) / 2);
+    const marginY16 = Math.round((a4Height - (4 * cardH16 + 3 * gapY16)) / 2);
+
+    // 8 Fronts (Columns 0 & 1, Rows 0..3)
+    for (let i = 0; i < 8; i++) {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const x = marginX16 + col * (cardW16 + gapX16);
+      const y = marginY16 + row * (cardH16 + gapY16);
+
+      const srcCanvas = frontCanvas || backCanvas;
+      if (srcCanvas) {
+        ctx.drawImage(srcCanvas, x, y, cardW16, cardH16);
+      } else {
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(x, y, cardW16, cardH16);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`Front ${i + 1}`, x + cardW16 / 2, y + cardH16 / 2);
+      }
+
+      if (showCutLines) {
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 6]);
+        ctx.strokeRect(x, y, cardW16, cardH16);
+        ctx.setLineDash([]);
+      }
+
+      if (showLabel) {
+        ctx.fillStyle = '#64748b';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(`FRONT (${i + 1}/8)`, x, y - 6);
+      }
+    }
+
+    // 8 Backs (Columns 2 & 3, Rows 0..3)
+    for (let i = 0; i < 8; i++) {
+      const col = 2 + (i % 2);
+      const row = Math.floor(i / 2);
+      const x = marginX16 + col * (cardW16 + gapX16);
+      const y = marginY16 + row * (cardH16 + gapY16);
+
+      const srcCanvas = backCanvas || frontCanvas;
+      if (srcCanvas) {
+        ctx.drawImage(srcCanvas, x, y, cardW16, cardH16);
+      } else {
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(x, y, cardW16, cardH16);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`Back ${i + 1}`, x + cardW16 / 2, y + cardH16 / 2);
+      }
+
+      if (showCutLines) {
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 6]);
+        ctx.strokeRect(x, y, cardW16, cardH16);
+        ctx.setLineDash([]);
+      }
+
+      if (showLabel) {
+        ctx.fillStyle = '#64748b';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(`BACK (${i + 1}/8)`, x, y - 6);
+      }
+    }
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('A4 ID Card Sheet • 8 Front & 8 Back Copies (16 Total) @ 300 DPI — Powered by Lunar AI', a4Width / 2, marginY16 / 2);
+
+    return canvas;
+  }
 
   const cardW = presetInfo.widthPx; // 990px
   const cardH = presetInfo.heightPx; // 660px
