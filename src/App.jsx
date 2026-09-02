@@ -24,7 +24,8 @@ import {
   CARD_PRESETS,
   detectCardCorners,
   warpPerspective,
-  applyImageEnhancements
+  applyImageEnhancements,
+  downloadCanvasAsJPEG
 } from './utils/imageProcessing';
 
 const THEMES = [
@@ -561,7 +562,7 @@ export default function App() {
                       </span>
                       <button
                         className="btn btn-primary glow-active"
-                        onClick={() => openDownloadModal(currentEnhancedCanvas, `ID_${activeSide.toUpperCase()}_3.3x2.2_300DPI`)}
+                        onClick={() => downloadCanvasAsJPEG(currentEnhancedCanvas, `ID_${activeSide.toUpperCase()}_3.3x2.2_300DPI.jpg`)}
                         style={{ padding: '4px 14px', fontSize: '0.8rem' }}
                       >
                         <Download size={14} /> Download JPEG (.jpg)
@@ -597,7 +598,7 @@ export default function App() {
 
                     <button
                       className="btn btn-success glow-active"
-                      onClick={() => openDownloadModal(currentEnhancedCanvas, `ID_${activeSide.toUpperCase()}_3.3x2.2_300DPI`)}
+                      onClick={() => downloadCanvasAsJPEG(currentEnhancedCanvas, `ID_${activeSide.toUpperCase()}_3.3x2.2_300DPI.jpg`)}
                       style={{ width: '100%' }}
                     >
                       <Download size={18} /> Download Single {activeSide.toUpperCase()} JPEG (.jpg)

@@ -55,39 +55,120 @@ export function downloadCanvasAsJPEG(canvas, filename = 'ID_Card_3.3x2.2_300DPI.
     safeName += '.jpg';
   }
 
-  if (exportCanvas.toBlob) {
-    exportCanvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          const dataUrl = exportCanvas.toDataURL('image/jpeg', 0.98);
-          triggerDownloadLink(dataUrl, safeName);
-          return;
-        }
-        const blobUrl = URL.createObjectURL(blob);
-        triggerDownloadLink(blobUrl, safeName);
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-      },
-      'image/jpeg',
-      0.98
-    );
-  } else {
+  try {
     const dataUrl = exportCanvas.toDataURL('image/jpeg', 0.98);
-    triggerDownloadLink(dataUrl, safeName);
+    const link = document.createElement('a');
+    link.download = safeName;
+    link.href = dataUrl;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      if (document.body.contains(link)) document.body.removeChild(link);
+    }, 1000);
+  } catch (err) {
+    if (exportCanvas.toBlob) {
+      exportCanvas.toBlob((blob) => {
+        if (!blob) return;
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = safeName;
+        link.href = blobUrl;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          if (document.body.contains(link)) document.body.removeChild(link);
+          URL.revokeObjectURL(blobUrl);
+        }, 3000);
+      }, 'image/jpeg', 0.98);
+    }
   }
 }
 
-function triggerDownloadLink(url, filename) {
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.style.display = 'none';
-  document.body.appendChild(link);
-  link.click();
+/**
+ * 100% RELIABLE 1-CLICK DIRECT PRINT ENGINE (IFRAME POWERED)
+ * Prints single-page or 2-page duplex sheets directly with zero margins & high resolution.
+ */
+export function printDocumentViaIframe({ pageCanvases, title = 'Direct Print A4 ID Cards' }) {
+  if (!pageCanvases || pageCanvases.length === 0) return;
+
+  const existingIframe = document.getElementById('direct-print-iframe');
+  if (existingIframe && document.body.contains(existingIframe)) {
+    document.body.removeChild(existingIframe);
+  }
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'direct-print-iframe';
+  iframe.style.position = 'fixed';
+  iframe.style.top = '-10000px';
+  iframe.style.left = '-10000px';
+  iframe.style.width = '0px';
+  iframe.style.height = '0px';
+  iframe.style.border = 'none';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+
+  const pagesHtml = pageCanvases
+    .map((canvas, idx) => {
+      const imgData = canvas.toDataURL('image/jpeg', 0.98);
+      return `<div class="print-page"><img src="${imgData}" alt="Page ${idx + 1}" /></div>`;
+    })
+    .join('');
+
+  doc.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 0mm;
+          }
+          * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+          }
+          html, body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            width: 100%;
+            height: 100%;
+          }
+          .print-page {
+            width: 100vw;
+            height: 100vh;
+            page-break-after: always;
+            page-break-inside: avoid;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .print-page:last-child {
+            page-break-after: auto;
+          }
+          img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+          }
+        </style>
+      </head>
+      <body>
+        ${pagesHtml}
+      </body>
+    </html>
+  `);
+  doc.close();
+
   setTimeout(() => {
-    if (document.body.contains(link)) {
-      document.body.removeChild(link);
-    }
-  }, 1000);
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  }, 400);
 }
 
 /**
