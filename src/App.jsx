@@ -4,6 +4,7 @@ import {
   Image as ImageIcon,
   CheckCircle,
   RotateCw,
+  RotateCcw,
   Sparkles,
   Printer,
   CreditCard,
@@ -213,6 +214,21 @@ export default function App() {
       }
     };
     rotatedImg.src = c.toDataURL();
+  };
+
+  const rotateCornerOrientation = (direction = 'clockwise') => {
+    const corners = activeSide === 'front' ? frontCorners : backCorners;
+    if (!corners || corners.length !== 4) return;
+
+    let rotated;
+    if (direction === 'clockwise') {
+      rotated = [corners[3], corners[0], corners[1], corners[2]];
+    } else {
+      rotated = [corners[1], corners[2], corners[3], corners[0]];
+    }
+
+    if (activeSide === 'front') setFrontCorners(rotated);
+    else setBackCorners(rotated);
   };
 
   const loadSampleIdCard = (side) => {
@@ -534,16 +550,22 @@ export default function App() {
                       </p>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button className="btn btn-secondary" onClick={() => rotateCurrentSideImage(90)} style={{ padding: '6px 12px', fontSize: '0.8rem' }} title="Rotate source photo 90 degrees">
+                        <RotateCw size={14} /> Rotate Photo 90°
+                      </button>
+                      <button className="btn btn-secondary" onClick={() => rotateCornerOrientation('clockwise')} style={{ padding: '6px 12px', fontSize: '0.8rem' }} title="Rotate crop box 90 degrees">
+                        <RotateCw size={14} /> Rotate Crop 90°
+                      </button>
                       <button className="btn btn-secondary" onClick={autoDetectCornersForCurrentSide} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
-                        <Target size={14} /> Trim Background
+                        <Target size={14} /> Auto-Trim
                       </button>
                       <button
                         className="btn btn-secondary"
                         onClick={() => handleReupload(activeSide)}
                         style={{ padding: '6px 12px', fontSize: '0.8rem' }}
                       >
-                        <RotateCw size={14} /> Re-upload
+                        <RotateCcw size={14} /> Re-upload
                       </button>
                     </div>
                   </div>
@@ -556,17 +578,27 @@ export default function App() {
                   />
 
                   <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
                       <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-muted)' }}>
                         Live Scan ({activePreset.widthPx} × {activePreset.heightPx} px @ 300 DPI):
                       </span>
-                      <button
-                        className="btn btn-primary glow-active"
-                        onClick={() => downloadCanvasAsJPEG(currentEnhancedCanvas, `ID_${activeSide.toUpperCase()}_3.3x2.2_300DPI.jpg`)}
-                        style={{ padding: '4px 14px', fontSize: '0.8rem' }}
-                      >
-                        <Download size={14} /> Download JPEG (.jpg)
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          className="btn btn-secondary"
+                          onClick={() => rotateCornerOrientation('clockwise')}
+                          style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                          title="Rotate output card 90 degrees"
+                        >
+                          <RotateCw size={14} /> Rotate 90°
+                        </button>
+                        <button
+                          className="btn btn-primary glow-active"
+                          onClick={() => downloadCanvasAsJPEG(currentEnhancedCanvas, `ID_${activeSide.toUpperCase()}_3.3x2.2_300DPI.jpg`)}
+                          style={{ padding: '4px 14px', fontSize: '0.8rem' }}
+                        >
+                          <Download size={14} /> Download JPEG (.jpg)
+                        </button>
+                      </div>
                     </div>
 
                     <div style={{ background: '#ffffff', padding: '6px', borderRadius: '8px', display: 'flex', justifyContent: 'center', overflow: 'hidden', boxShadow: '0 6px 20px rgba(0,0,0,0.5)' }}>
