@@ -1,3 +1,5 @@
+import jsPDF from 'jspdf';
+
 /**
  * ULTRA-SHARP ID CARD SCANNER ENGINE WITH FAIL-SAFE DOWNLOAD
  */
@@ -91,6 +93,66 @@ export function downloadCanvasAsJPEG(canvas, filename = 'ID_Card_3.3x2.2_300DPI.
 export function printDocumentViaIframe({ pageCanvases, title = 'Direct Print A4 ID Cards' }) {
   if (!pageCanvases || pageCanvases.length === 0) return;
 
+  // 1. High-Precision Vector PDF Engine (100% immune to browser HTML flexbox & page-break overflow)
+  try {
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+      compress: true
+    });
+
+    pageCanvases.forEach((canvas, idx) => {
+      if (idx > 0) {
+        pdf.addPage('a4', 'portrait');
+      }
+      const imgData = canvas.toDataURL('image/jpeg', 0.98);
+      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+    });
+
+    pdf.autoPrint();
+    const pdfBlob = pdf.output('blob');
+    const blobUrl = URL.createObjectURL(pdfBlob);
+
+    // Try opening clean direct PDF print window
+    const printWin = window.open(blobUrl, '_blank');
+    if (printWin) {
+      printWin.focus();
+      return;
+    }
+
+    // Fallback if popup blocked: load into invisible iframe
+    const existingIframe = document.getElementById('direct-print-iframe');
+    if (existingIframe && document.body.contains(existingIframe)) {
+      document.body.removeChild(existingIframe);
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'direct-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.top = '-10000px';
+    iframe.style.left = '-10000px';
+    iframe.style.width = '1000px';
+    iframe.style.height = '1000px';
+    iframe.src = blobUrl;
+    document.body.appendChild(iframe);
+
+    iframe.onload = () => {
+      setTimeout(() => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch (e) {
+          window.open(blobUrl, '_blank');
+        }
+      }, 400);
+    };
+    return;
+  } catch (err) {
+    console.warn('PDF direct print fallback to HTML:', err);
+  }
+
+  // 2. HTML Fallback if jsPDF is unavailable
   const existingIframe = document.getElementById('direct-print-iframe');
   if (existingIframe && document.body.contains(existingIframe)) {
     document.body.removeChild(existingIframe);

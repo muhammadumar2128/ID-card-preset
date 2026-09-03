@@ -689,49 +689,77 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
 
               {/* Vertical Shift (Y-Offset) */}
               <div style={{ marginBottom: '14px', background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
                   <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-main)' }}>
                     Vertical Shift (Y):
                   </span>
-                  <span style={{
-                    fontSize: '0.82rem',
-                    fontWeight: '700',
-                    color: (calibSide === 'back' ? backOffsetY : frontOffsetY) !== 0 ? '#38bdf8' : 'var(--text-muted)',
-                    background: 'rgba(56, 189, 248, 0.1)',
-                    padding: '2px 8px',
-                    borderRadius: '4px'
-                  }}>
-                    {calibSide === 'back'
-                      ? `${backOffsetY > 0 ? '+' : ''}${backOffsetY} mm ${backOffsetY < 0 ? '(UP ⬆️)' : backOffsetY > 0 ? '(DOWN ⬇️)' : '(Centered)'}`
-                      : `${frontOffsetY > 0 ? '+' : ''}${frontOffsetY} mm ${frontOffsetY < 0 ? '(UP ⬆️)' : frontOffsetY > 0 ? '(DOWN ⬇️)' : '(Centered)'}`}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={calibSide === 'back' ? backOffsetY : frontOffsetY}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        if (calibSide === 'back') setBackOffsetY(val);
+                        else setFrontOffsetY(val);
+                      }}
+                      style={{
+                        width: '70px',
+                        padding: '3px 6px',
+                        fontSize: '0.82rem',
+                        fontWeight: '700',
+                        textAlign: 'center',
+                        borderRadius: '4px',
+                        border: '1px solid #38bdf8',
+                        background: 'rgba(15, 23, 42, 0.9)',
+                        color: '#38bdf8'
+                      }}
+                    />
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>mm</span>
+                  </div>
                 </div>
 
                 {/* Quick Nudge Buttons */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', marginBottom: '8px' }}>
                   <button
                     className="btn btn-secondary"
-                    onClick={() => adjustOffset(calibSide, 'y', -0.5)}
-                    style={{ fontSize: '0.8rem', padding: '6px 8px', justifyContent: 'center', fontWeight: '600' }}
-                    title="Nudge Up by 0.5 mm"
+                    onClick={() => adjustOffset(calibSide, 'y', -5)}
+                    style={{ fontSize: '0.75rem', padding: '5px 4px', justifyContent: 'center', fontWeight: '600' }}
+                    title="Nudge Up by 5 mm"
                   >
-                    <ArrowUp size={14} color="#38bdf8" /> Nudge Up (-0.5mm)
+                    <ArrowUp size={12} color="#38bdf8" /> Up 5mm
                   </button>
                   <button
                     className="btn btn-secondary"
-                    onClick={() => adjustOffset(calibSide, 'y', 0.5)}
-                    style={{ fontSize: '0.8rem', padding: '6px 8px', justifyContent: 'center', fontWeight: '600' }}
-                    title="Nudge Down by 0.5 mm"
+                    onClick={() => adjustOffset(calibSide, 'y', -1)}
+                    style={{ fontSize: '0.75rem', padding: '5px 4px', justifyContent: 'center', fontWeight: '600' }}
+                    title="Nudge Up by 1 mm"
                   >
-                    <ArrowDown size={14} color="#38bdf8" /> Nudge Down (+0.5mm)
+                    <ArrowUp size={12} color="#38bdf8" /> Up 1mm
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => adjustOffset(calibSide, 'y', 1)}
+                    style={{ fontSize: '0.75rem', padding: '5px 4px', justifyContent: 'center', fontWeight: '600' }}
+                    title="Nudge Down by 1 mm"
+                  >
+                    <ArrowDown size={12} color="#38bdf8" /> Down 1mm
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => adjustOffset(calibSide, 'y', 5)}
+                    style={{ fontSize: '0.75rem', padding: '5px 4px', justifyContent: 'center', fontWeight: '600' }}
+                    title="Nudge Down by 5 mm"
+                  >
+                    <ArrowDown size={12} color="#38bdf8" /> Down 5mm
                   </button>
                 </div>
 
                 {/* Range slider */}
                 <input
                   type="range"
-                  min="-15"
-                  max="15"
+                  min="-60"
+                  max="60"
                   step="0.5"
                   value={calibSide === 'back' ? backOffsetY : frontOffsetY}
                   onChange={(e) => {
@@ -741,53 +769,86 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
                   }}
                   style={{ width: '100%', cursor: 'pointer' }}
                 />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  <span>-60mm (Up)</span>
+                  <span>0mm</span>
+                  <span>+60mm (Down)</span>
+                </div>
               </div>
 
               {/* Horizontal Shift (X-Offset) */}
               <div style={{ marginBottom: '14px', background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
                   <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-main)' }}>
                     Horizontal Shift (X):
                   </span>
-                  <span style={{
-                    fontSize: '0.82rem',
-                    fontWeight: '700',
-                    color: (calibSide === 'back' ? backOffsetX : frontOffsetX) !== 0 ? '#10b981' : 'var(--text-muted)',
-                    background: 'rgba(16, 185, 129, 0.1)',
-                    padding: '2px 8px',
-                    borderRadius: '4px'
-                  }}>
-                    {calibSide === 'back'
-                      ? `${backOffsetX > 0 ? '+' : ''}${backOffsetX} mm ${backOffsetX < 0 ? '(LEFT ⬅️)' : backOffsetX > 0 ? '(RIGHT ➡️)' : '(Centered)'}`
-                      : `${frontOffsetX > 0 ? '+' : ''}${frontOffsetX} mm ${frontOffsetX < 0 ? '(LEFT ⬅️)' : frontOffsetX > 0 ? '(RIGHT ➡️)' : '(Centered)'}`}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={calibSide === 'back' ? backOffsetX : frontOffsetX}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        if (calibSide === 'back') setBackOffsetX(val);
+                        else setFrontOffsetX(val);
+                      }}
+                      style={{
+                        width: '70px',
+                        padding: '3px 6px',
+                        fontSize: '0.82rem',
+                        fontWeight: '700',
+                        textAlign: 'center',
+                        borderRadius: '4px',
+                        border: '1px solid #10b981',
+                        background: 'rgba(15, 23, 42, 0.9)',
+                        color: '#10b981'
+                      }}
+                    />
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>mm</span>
+                  </div>
                 </div>
 
                 {/* Quick Nudge Buttons */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', marginBottom: '8px' }}>
                   <button
                     className="btn btn-secondary"
-                    onClick={() => adjustOffset(calibSide, 'x', -0.5)}
-                    style={{ fontSize: '0.8rem', padding: '6px 8px', justifyContent: 'center' }}
-                    title="Nudge Left by 0.5 mm"
+                    onClick={() => adjustOffset(calibSide, 'x', -5)}
+                    style={{ fontSize: '0.75rem', padding: '5px 4px', justifyContent: 'center' }}
+                    title="Nudge Left by 5 mm"
                   >
-                    <ArrowLeft size={14} color="#10b981" /> Nudge Left (-0.5mm)
+                    <ArrowLeft size={12} color="#10b981" /> Left 5mm
                   </button>
                   <button
                     className="btn btn-secondary"
-                    onClick={() => adjustOffset(calibSide, 'x', 0.5)}
-                    style={{ fontSize: '0.8rem', padding: '6px 8px', justifyContent: 'center' }}
-                    title="Nudge Right by 0.5 mm"
+                    onClick={() => adjustOffset(calibSide, 'x', -1)}
+                    style={{ fontSize: '0.75rem', padding: '5px 4px', justifyContent: 'center' }}
+                    title="Nudge Left by 1 mm"
                   >
-                    <ArrowRight size={14} color="#10b981" /> Nudge Right (+0.5mm)
+                    <ArrowLeft size={12} color="#10b981" /> Left 1mm
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => adjustOffset(calibSide, 'x', 1)}
+                    style={{ fontSize: '0.75rem', padding: '5px 4px', justifyContent: 'center' }}
+                    title="Nudge Right by 1 mm"
+                  >
+                    <ArrowRight size={12} color="#10b981" /> Right 1mm
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => adjustOffset(calibSide, 'x', 5)}
+                    style={{ fontSize: '0.75rem', padding: '5px 4px', justifyContent: 'center' }}
+                    title="Nudge Right by 5 mm"
+                  >
+                    <ArrowRight size={12} color="#10b981" /> Right 5mm
                   </button>
                 </div>
 
                 {/* Range slider */}
                 <input
                   type="range"
-                  min="-15"
-                  max="15"
+                  min="-60"
+                  max="60"
                   step="0.5"
                   value={calibSide === 'back' ? backOffsetX : frontOffsetX}
                   onChange={(e) => {
@@ -797,21 +858,27 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
                   }}
                   style={{ width: '100%', cursor: 'pointer' }}
                 />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  <span>-60mm (Left)</span>
+                  <span>0mm</span>
+                  <span>+60mm (Right)</span>
+                </div>
               </div>
 
               {/* Quick Preset Buttons */}
               <div style={{ marginBottom: '12px' }}>
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-                  ⚡ Quick Calibration Presets (Fix Back Down):
+                  ⚡ Quick Duplex Presets (Fix Back Down):
                 </span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                   {[
                     { label: '0 mm (Reset)', y: 0, x: 0 },
-                    { label: '▲ Up 1 mm', y: -1, x: 0 },
+                    { label: '▲ Up 35 mm (Fix Drop)', y: -35, x: 0 },
+                    { label: '▲ Up 30 mm', y: -30, x: 0 },
+                    { label: '▲ Up 20 mm', y: -20, x: 0 },
+                    { label: '▲ Up 10 mm', y: -10, x: 0 },
                     { label: '▲ Up 2 mm', y: -2, x: 0 },
-                    { label: '▲ Up 3 mm', y: -3, x: 0 },
-                    { label: '▼ Down 1 mm', y: 1, x: 0 },
-                    { label: '▼ Down 2 mm', y: 2, x: 0 }
+                    { label: '▼ Down 35 mm', y: 35, x: 0 }
                   ].map((preset) => (
                     <button
                       key={preset.label}
