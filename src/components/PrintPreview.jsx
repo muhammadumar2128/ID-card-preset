@@ -1,5 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Download, Printer, Copy, CheckCircle2, Grid, Scissors, Layers, Eye, Sparkles, FileText } from 'lucide-react';
+import {
+  Download,
+  Printer,
+  Copy,
+  CheckCircle2,
+  Grid,
+  Scissors,
+  Layers,
+  Eye,
+  Sparkles,
+  FileText,
+  Sliders,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  RotateCcw,
+  Crosshair
+} from 'lucide-react';
 import jsPDF from 'jspdf';
 import { generateA4MultiCopyCanvas, downloadCanvasAsJPEG, printDocumentViaIframe } from '../utils/imageProcessing';
 
@@ -16,9 +34,33 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
   // For 2-page duplex view: toggle viewing page 1 or page 2
   const [duplexViewPage, setDuplexViewPage] = useState(1); // 1 = Fronts, 2 = Backs
 
+  // Alignment calibration offsets in millimeters (Persisted in localStorage for permanent calibration)
+  const [backOffsetY, setBackOffsetY] = useState(() => {
+    const saved = localStorage.getItem('idcard_backOffsetY');
+    return saved !== null ? Number(saved) : 0;
+  });
+  const [backOffsetX, setBackOffsetX] = useState(() => {
+    const saved = localStorage.getItem('idcard_backOffsetX');
+    return saved !== null ? Number(saved) : 0;
+  });
+  const [frontOffsetY, setFrontOffsetY] = useState(0);
+  const [frontOffsetX, setFrontOffsetX] = useState(0);
+
+  // Active side being calibrated in the UI
+  const [calibSide, setCalibSide] = useState('back'); // 'back' | 'front'
+
+  // Visual Overlay registration check mode
+  const [isOverlayMode, setIsOverlayMode] = useState(false);
+
   const previewCanvasRef = useRef(null);
 
-  // Lightweight 60 FPS live canvas preview rendering
+  // Persist back side offsets so user's printer alignment is permanently remembered
+  useEffect(() => {
+    localStorage.setItem('idcard_backOffsetY', String(backOffsetY));
+    localStorage.setItem('idcard_backOffsetX', String(backOffsetX));
+  }, [backOffsetY, backOffsetX]);
+
+  // Lightweight live canvas preview rendering
   useEffect(() => {
     if (!previewCanvasRef.current) return;
     const canvas = previewCanvasRef.current;
@@ -34,6 +76,13 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
 
     const scale = prevW / 2480;
 
+    // Convert mm to preview px
+    const mmToPrevPx = (mm) => ((Number(mm) || 0) / 25.4) * 300 * scale;
+    const bOffX = mmToPrevPx(backOffsetX);
+    const bOffY = mmToPrevPx(backOffsetY);
+    const fOffX = mmToPrevPx(frontOffsetX);
+    const fOffY = mmToPrevPx(frontOffsetY);
+
     // 1-Page 16-Card Combined Mode (8 Front + 8 Back on 1 Single A4 Sheet)
     if (activeTab === 'combined16') {
       const cardW16 = 530 * scale;
@@ -47,8 +96,8 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
       for (let i = 0; i < 8; i++) {
         const col = i % 2;
         const row = Math.floor(i / 2);
-        const x = marginX16 + col * (cardW16 + gapX16);
-        const y = marginY16 + row * (cardH16 + gapY16);
+        const x = marginX16 + col * (cardW16 + gapX16) + fOffX;
+        const y = marginY16 + row * (cardH16 + gapY16) + fOffY;
 
         const srcCanvas = frontCanvas || backCanvas;
         if (srcCanvas) {
@@ -82,8 +131,8 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
       for (let i = 0; i < 8; i++) {
         const col = 2 + (i % 2);
         const row = Math.floor(i / 2);
-        const x = marginX16 + col * (cardW16 + gapX16);
-        const y = marginY16 + row * (cardH16 + gapY16);
+        const x = marginX16 + col * (cardW16 + gapX16) + bOffX;
+        const y = marginY16 + row * (cardH16 + gapY16) + bOffY;
 
         const srcCanvas = backCanvas || frontCanvas;
         if (srcCanvas) {
@@ -128,6 +177,76 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
     const marginX = Math.round((prevW - (2 * cardW + gapX)) / 2);
     const marginY = Math.round((prevH - (4 * cardH + 3 * gapY)) / 2);
 
+    // Overlay Registration Check Mode: Superimposes Front & Back on top of each other!
+    if (isOverlayMode && activeTab === 'duplex2page') {
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, prevW, prevH);
+
+      for (let i = 0; i < 8; i++) {
+        const row = Math.floor(i / 2);
+
+        // Front Slot (Column i % 2)
+        const frontCol = i % 2;
+        const fx = marginX + frontCol * (cardW + gapX) + fOffX;
+        const fy = marginY + row * (cardH + gapY) + fOffY;
+
+        // Back Slot (Mirrored Column when duplexMirror is on)
+        let backCol = i % 2;
+        if (duplexMirror) backCol = backCol === 0 ? 1 : 0;
+        const bx = marginX + backCol * (cardW + gapX) + bOffX;
+        const by = marginY + row * (cardH + gapY) + bOffY;
+
+        // Draw Front Outline & Ghost
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+        ctx.fillRect(fx, fy, cardW, cardH);
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(fx, fy, cardW, cardH);
+
+        // Draw Back Outline & Ghost
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.2)';
+        ctx.fillRect(bx, by, cardW, cardH);
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(bx, by, cardW, cardH);
+        ctx.setLineDash([]);
+
+        // Crosshairs in center
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 1;
+        // Front Center
+        ctx.beginPath();
+        ctx.arc(fx + cardW / 2, fy + cardH / 2, 4, 0, Math.PI * 2);
+        ctx.stroke();
+        // Back Center
+        ctx.beginPath();
+        ctx.arc(bx + cardW / 2, by + cardH / 2, 4, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 8px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`Slot ${i + 1}`, fx + cardW / 2, fy + cardH / 2 + 16);
+      }
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('— FRONT Side Position', 20, 20);
+
+      ctx.fillStyle = '#10b981';
+      ctx.fillText('--- BACK Side Position (Calibrated)', 20, 34);
+
+      ctx.fillStyle = '#fbbf24';
+      ctx.textAlign = 'right';
+      const offText = `Back Offset: Y: ${backOffsetY > 0 ? '+' : ''}${backOffsetY}mm, X: ${backOffsetX > 0 ? '+' : ''}${backOffsetX}mm`;
+      ctx.fillText(offText, prevW - 20, 20);
+
+      return;
+    }
+
     const isShowingBack = activeTab === 'back' || (activeTab === 'duplex2page' && duplexViewPage === 2);
     const count = activeTab === 'duplex2page' ? 8 : Math.min(8, Math.max(1, quantity));
 
@@ -139,8 +258,11 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
         col = col === 0 ? 1 : 0;
       }
 
-      const x = marginX + col * (cardW + gapX);
-      const y = marginY + row * (cardH + gapY);
+      const currentOffX = isShowingBack ? bOffX : fOffX;
+      const currentOffY = isShowingBack ? bOffY : fOffY;
+
+      const x = marginX + col * (cardW + gapX) + currentOffX;
+      const y = marginY + row * (cardH + gapY) + currentOffY;
 
       let srcCanvas = isShowingBack ? (backCanvas || frontCanvas) : (frontCanvas || backCanvas);
       let label = isShowingBack ? 'BACK' : 'FRONT';
@@ -177,12 +299,30 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
     ctx.fillStyle = '#94a3b8';
     ctx.font = '7px sans-serif';
     ctx.textAlign = 'center';
+    const calibText = (backOffsetY !== 0 || backOffsetX !== 0)
+      ? ` • Calibration: Y=${backOffsetY > 0 ? '+' : ''}${backOffsetY}mm, X=${backOffsetX > 0 ? '+' : ''}${backOffsetX}mm`
+      : '';
     const pageHeaderTitle = activeTab === 'duplex2page'
-      ? `A4 Duplex Sheet • Page ${duplexViewPage} of 2 (${duplexViewPage === 1 ? '8 FRONT Copies' : '8 BACK Copies - Mirrored'}) • 300 DPI`
-      : `A4 Sheet • ${count} Copies (${isShowingBack ? 'BACK' : 'FRONT'}) • ${presetInfo.widthInches}" × ${presetInfo.heightInches}" @ 300 DPI`;
+      ? `A4 Duplex Sheet • Page ${duplexViewPage} of 2 (${duplexViewPage === 1 ? '8 FRONT Copies' : '8 BACK Copies - Mirrored'}) • 300 DPI${calibText}`
+      : `A4 Sheet • ${count} Copies (${isShowingBack ? 'BACK' : 'FRONT'}) • ${presetInfo.widthInches}" × ${presetInfo.heightInches}" @ 300 DPI${calibText}`;
     ctx.fillText(pageHeaderTitle, prevW / 2, marginY / 2);
 
-  }, [frontCanvas, backCanvas, presetInfo, quantity, activeTab, duplexViewPage, showCutLines, showLabel, duplexMirror]);
+  }, [
+    frontCanvas,
+    backCanvas,
+    presetInfo,
+    quantity,
+    activeTab,
+    duplexViewPage,
+    showCutLines,
+    showLabel,
+    duplexMirror,
+    backOffsetY,
+    backOffsetX,
+    frontOffsetY,
+    frontOffsetX,
+    isOverlayMode
+  ]);
 
   // 1. Direct Print 2-Page Duplex (Page 1 = 8 Fronts, Page 2 = 8 Backs)
   const handleDirectPrint2SidedDuplex = () => {
@@ -194,7 +334,9 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
       layoutMode: 'front',
       showCutLines,
       showLabel,
-      duplexMirror: false
+      duplexMirror: false,
+      frontOffsetXmm: frontOffsetX,
+      frontOffsetYmm: frontOffsetY
     });
 
     const page2 = generateA4MultiCopyCanvas({
@@ -205,7 +347,9 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
       layoutMode: 'back',
       showCutLines,
       showLabel,
-      duplexMirror: true
+      duplexMirror: true,
+      backOffsetXmm: backOffsetX,
+      backOffsetYmm: backOffsetY
     });
 
     printDocumentViaIframe({
@@ -229,7 +373,11 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
       layoutMode: activeTab,
       showCutLines,
       showLabel,
-      duplexMirror
+      duplexMirror,
+      frontOffsetXmm: frontOffsetX,
+      frontOffsetYmm: frontOffsetY,
+      backOffsetXmm: backOffsetX,
+      backOffsetYmm: backOffsetY
     });
 
     printDocumentViaIframe({
@@ -238,58 +386,46 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
     });
   };
 
-  // 3. Download 2-Page Duplex PDF (Page 1 = 8 Fronts, Page 2 = 8 Backs)
+  // 3. Download 2-Page Duplex PDF (Page 1 = 8 Fronts, Page 2 = 8 Backs) with exact calibration
   const handleDownload2PageDuplexPDF = () => {
     const pdf = new jsPDF({
       orientation: 'portrait',
-      unit: 'in',
+      unit: 'mm',
       format: 'a4'
     });
 
-    const renderPdfGrid = (sideCanvas, isBack) => {
-      const cardW = presetInfo.widthInches;
-      const cardH = presetInfo.heightInches;
-      const a4W = 8.27;
-      const a4H = 11.69;
-      const gapX = 0.533;
-      const gapY = 0.467;
-      const marginX = (a4W - (2 * cardW + gapX)) / 2;
-      const marginY = (a4H - (4 * cardH + 3 * gapY)) / 2;
+    const page1 = generateA4MultiCopyCanvas({
+      frontCanvas,
+      backCanvas,
+      presetInfo,
+      quantity: 8,
+      layoutMode: 'front',
+      showCutLines,
+      showLabel,
+      duplexMirror: false,
+      frontOffsetXmm: frontOffsetX,
+      frontOffsetYmm: frontOffsetY
+    });
 
-      for (let i = 0; i < 8; i++) {
-        let col = i % 2;
-        const row = Math.floor(i / 2);
-        if (isBack && duplexMirror) col = col === 0 ? 1 : 0;
+    const page2 = generateA4MultiCopyCanvas({
+      frontCanvas,
+      backCanvas,
+      presetInfo,
+      quantity: 8,
+      layoutMode: 'back',
+      showCutLines,
+      showLabel,
+      duplexMirror: true,
+      backOffsetXmm: backOffsetX,
+      backOffsetYmm: backOffsetY
+    });
 
-        const x = marginX + col * (cardW + gapX);
-        const y = marginY + row * (cardH + gapY);
+    const p1Data = page1.toDataURL('image/jpeg', 0.98);
+    pdf.addImage(p1Data, 'JPEG', 0, 0, 210, 297);
 
-        if (sideCanvas) {
-          const imgData = sideCanvas.toDataURL('image/jpeg', 0.98);
-          pdf.addImage(imgData, 'JPEG', x, y, cardW, cardH);
-        }
-
-        if (showCutLines) {
-          pdf.setDrawColor(180, 180, 180);
-          pdf.setLineDashPattern([0.06, 0.06], 0);
-          pdf.rect(x, y, cardW, cardH);
-        }
-
-        if (showLabel) {
-          pdf.setFontSize(8);
-          pdf.setTextColor(120, 120, 120);
-          pdf.setFont('helvetica', 'normal');
-          pdf.text(`${isBack ? 'BACK' : 'FRONT'} (${i + 1}/8)`, x, y - 0.04);
-        }
-      }
-    };
-
-    // Page 1: 8 Fronts
-    renderPdfGrid(frontCanvas || backCanvas, false);
-
-    // Page 2: 8 Backs
     pdf.addPage('a4', 'portrait');
-    renderPdfGrid(backCanvas || frontCanvas, true);
+    const p2Data = page2.toDataURL('image/jpeg', 0.98);
+    pdf.addImage(p2Data, 'JPEG', 0, 0, 210, 297);
 
     pdf.save('A4_2Page_Duplex_8Front_8Back_300DPI.pdf');
   };
@@ -304,7 +440,9 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
       layoutMode: 'front',
       showCutLines,
       showLabel,
-      duplexMirror: false
+      duplexMirror: false,
+      frontOffsetXmm: frontOffsetX,
+      frontOffsetYmm: frontOffsetY
     });
     downloadCanvasAsJPEG(fullCanvas, 'A4_Page1_8Fronts_3.3x2.2_300DPI.jpg');
   };
@@ -319,7 +457,9 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
       layoutMode: 'back',
       showCutLines,
       showLabel,
-      duplexMirror: true
+      duplexMirror: true,
+      backOffsetXmm: backOffsetX,
+      backOffsetYmm: backOffsetY
     });
     downloadCanvasAsJPEG(fullCanvas, 'A4_Page2_8Backs_3.3x2.2_300DPI.jpg');
   };
@@ -334,9 +474,37 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
       layoutMode: 'combined16',
       showCutLines,
       showLabel,
-      duplexMirror
+      duplexMirror,
+      frontOffsetXmm: frontOffsetX,
+      frontOffsetYmm: frontOffsetY,
+      backOffsetXmm: backOffsetX,
+      backOffsetYmm: backOffsetY
     });
     downloadCanvasAsJPEG(fullCanvas, 'A4_1Page_8Front_8Back_16Cards_300DPI.jpg');
+  };
+
+  // Helper to adjust offset
+  const adjustOffset = (targetSide, axis, delta) => {
+    if (targetSide === 'back') {
+      if (axis === 'y') {
+        setBackOffsetY((prev) => Math.round((prev + delta) * 10) / 10);
+      } else {
+        setBackOffsetX((prev) => Math.round((prev + delta) * 10) / 10);
+      }
+    } else {
+      if (axis === 'y') {
+        setFrontOffsetY((prev) => Math.round((prev + delta) * 10) / 10);
+      } else {
+        setFrontOffsetX((prev) => Math.round((prev + delta) * 10) / 10);
+      }
+    }
+  };
+
+  const resetOffsets = () => {
+    setBackOffsetY(0);
+    setBackOffsetX(0);
+    setFrontOffsetY(0);
+    setFrontOffsetX(0);
   };
 
   return (
@@ -376,7 +544,7 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
       </div>
 
       {/* Main Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '24px' }}>
         
         {/* Left Options Panel */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -440,18 +608,18 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
                   <button
-                    className={`btn ${duplexViewPage === 1 ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => setDuplexViewPage(1)}
+                    className={`btn ${duplexViewPage === 1 && !isOverlayMode ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => { setDuplexViewPage(1); setIsOverlayMode(false); }}
                     style={{ fontSize: '0.85rem', padding: '8px 10px', justifyContent: 'center' }}
                   >
-                    View Page 1 (8 Fronts)
+                    View Page 1 (Fronts)
                   </button>
                   <button
-                    className={`btn ${duplexViewPage === 2 ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => setDuplexViewPage(2)}
+                    className={`btn ${duplexViewPage === 2 && !isOverlayMode ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => { setDuplexViewPage(2); setIsOverlayMode(false); }}
                     style={{ fontSize: '0.85rem', padding: '8px 10px', justifyContent: 'center' }}
                   >
-                    View Page 2 (8 Backs)
+                    View Page 2 (Backs)
                   </button>
                 </div>
 
@@ -473,6 +641,223 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
                 </div>
               </div>
             )}
+
+            {/* DUPLEX ALIGNMENT & NUDGE CALIBRATION PANEL */}
+            <div style={{
+              padding: '16px',
+              borderRadius: '12px',
+              background: 'linear-gradient(145deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9))',
+              border: '1px solid rgba(56, 189, 248, 0.4)',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
+              marginBottom: '20px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: '700', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Crosshair size={18} color="#38bdf8" /> 2. Alignment & Nudge Calibration
+                </h3>
+                <button
+                  className="btn btn-secondary"
+                  onClick={resetOffsets}
+                  title="Reset to 0mm center alignment"
+                  style={{ fontSize: '0.75rem', padding: '4px 8px', height: '26px' }}
+                >
+                  <RotateCcw size={12} /> Reset
+                </button>
+              </div>
+
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '14px' }}>
+                Fixes paper feed drift when printing duplex. If the back side is going down, nudge it <strong style={{ color: '#38bdf8' }}>UP</strong> here.
+              </p>
+
+              {/* Side Selector Tab (Back Side vs Front Side) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '14px' }}>
+                <button
+                  className={`btn ${calibSide === 'back' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setCalibSide('back')}
+                  style={{ fontSize: '0.8rem', padding: '6px 8px', justifyContent: 'center', fontWeight: '600' }}
+                >
+                  Back Side (Target)
+                </button>
+                <button
+                  className={`btn ${calibSide === 'front' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setCalibSide('front')}
+                  style={{ fontSize: '0.8rem', padding: '6px 8px', justifyContent: 'center' }}
+                >
+                  Front Side
+                </button>
+              </div>
+
+              {/* Vertical Shift (Y-Offset) */}
+              <div style={{ marginBottom: '14px', background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-main)' }}>
+                    Vertical Shift (Y):
+                  </span>
+                  <span style={{
+                    fontSize: '0.82rem',
+                    fontWeight: '700',
+                    color: (calibSide === 'back' ? backOffsetY : frontOffsetY) !== 0 ? '#38bdf8' : 'var(--text-muted)',
+                    background: 'rgba(56, 189, 248, 0.1)',
+                    padding: '2px 8px',
+                    borderRadius: '4px'
+                  }}>
+                    {calibSide === 'back'
+                      ? `${backOffsetY > 0 ? '+' : ''}${backOffsetY} mm ${backOffsetY < 0 ? '(UP ⬆️)' : backOffsetY > 0 ? '(DOWN ⬇️)' : '(Centered)'}`
+                      : `${frontOffsetY > 0 ? '+' : ''}${frontOffsetY} mm ${frontOffsetY < 0 ? '(UP ⬆️)' : frontOffsetY > 0 ? '(DOWN ⬇️)' : '(Centered)'}`}
+                  </span>
+                </div>
+
+                {/* Quick Nudge Buttons */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '8px' }}>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => adjustOffset(calibSide, 'y', -0.5)}
+                    style={{ fontSize: '0.8rem', padding: '6px 8px', justifyContent: 'center', fontWeight: '600' }}
+                    title="Nudge Up by 0.5 mm"
+                  >
+                    <ArrowUp size={14} color="#38bdf8" /> Nudge Up (-0.5mm)
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => adjustOffset(calibSide, 'y', 0.5)}
+                    style={{ fontSize: '0.8rem', padding: '6px 8px', justifyContent: 'center', fontWeight: '600' }}
+                    title="Nudge Down by 0.5 mm"
+                  >
+                    <ArrowDown size={14} color="#38bdf8" /> Nudge Down (+0.5mm)
+                  </button>
+                </div>
+
+                {/* Range slider */}
+                <input
+                  type="range"
+                  min="-15"
+                  max="15"
+                  step="0.5"
+                  value={calibSide === 'back' ? backOffsetY : frontOffsetY}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (calibSide === 'back') setBackOffsetY(val);
+                    else setFrontOffsetY(val);
+                  }}
+                  style={{ width: '100%', cursor: 'pointer' }}
+                />
+              </div>
+
+              {/* Horizontal Shift (X-Offset) */}
+              <div style={{ marginBottom: '14px', background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-main)' }}>
+                    Horizontal Shift (X):
+                  </span>
+                  <span style={{
+                    fontSize: '0.82rem',
+                    fontWeight: '700',
+                    color: (calibSide === 'back' ? backOffsetX : frontOffsetX) !== 0 ? '#10b981' : 'var(--text-muted)',
+                    background: 'rgba(16, 185, 129, 0.1)',
+                    padding: '2px 8px',
+                    borderRadius: '4px'
+                  }}>
+                    {calibSide === 'back'
+                      ? `${backOffsetX > 0 ? '+' : ''}${backOffsetX} mm ${backOffsetX < 0 ? '(LEFT ⬅️)' : backOffsetX > 0 ? '(RIGHT ➡️)' : '(Centered)'}`
+                      : `${frontOffsetX > 0 ? '+' : ''}${frontOffsetX} mm ${frontOffsetX < 0 ? '(LEFT ⬅️)' : frontOffsetX > 0 ? '(RIGHT ➡️)' : '(Centered)'}`}
+                  </span>
+                </div>
+
+                {/* Quick Nudge Buttons */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '8px' }}>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => adjustOffset(calibSide, 'x', -0.5)}
+                    style={{ fontSize: '0.8rem', padding: '6px 8px', justifyContent: 'center' }}
+                    title="Nudge Left by 0.5 mm"
+                  >
+                    <ArrowLeft size={14} color="#10b981" /> Nudge Left (-0.5mm)
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => adjustOffset(calibSide, 'x', 0.5)}
+                    style={{ fontSize: '0.8rem', padding: '6px 8px', justifyContent: 'center' }}
+                    title="Nudge Right by 0.5 mm"
+                  >
+                    <ArrowRight size={14} color="#10b981" /> Nudge Right (+0.5mm)
+                  </button>
+                </div>
+
+                {/* Range slider */}
+                <input
+                  type="range"
+                  min="-15"
+                  max="15"
+                  step="0.5"
+                  value={calibSide === 'back' ? backOffsetX : frontOffsetX}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (calibSide === 'back') setBackOffsetX(val);
+                    else setFrontOffsetX(val);
+                  }}
+                  style={{ width: '100%', cursor: 'pointer' }}
+                />
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div style={{ marginBottom: '12px' }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                  ⚡ Quick Calibration Presets (Fix Back Down):
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                  {[
+                    { label: '0 mm (Reset)', y: 0, x: 0 },
+                    { label: '▲ Up 1 mm', y: -1, x: 0 },
+                    { label: '▲ Up 2 mm', y: -2, x: 0 },
+                    { label: '▲ Up 3 mm', y: -3, x: 0 },
+                    { label: '▼ Down 1 mm', y: 1, x: 0 },
+                    { label: '▼ Down 2 mm', y: 2, x: 0 }
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        if (calibSide === 'back') {
+                          setBackOffsetY(preset.y);
+                          setBackOffsetX(preset.x);
+                        } else {
+                          setFrontOffsetY(preset.y);
+                          setFrontOffsetX(preset.x);
+                        }
+                      }}
+                      style={{
+                        fontSize: '0.74rem',
+                        padding: '4px 8px',
+                        background: ((calibSide === 'back' ? backOffsetY : frontOffsetY) === preset.y && (calibSide === 'back' ? backOffsetX : frontOffsetX) === preset.x)
+                          ? 'var(--accent-primary)'
+                          : ''
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Overlay Check Toggle */}
+              {activeTab === 'duplex2page' && (
+                <button
+                  className={`btn ${isOverlayMode ? 'btn-success glow-active' : 'btn-secondary'}`}
+                  onClick={() => setIsOverlayMode(!isOverlayMode)}
+                  style={{
+                    width: '100%',
+                    justifyContent: 'center',
+                    fontSize: '0.82rem',
+                    padding: '8px 12px',
+                    fontWeight: '600'
+                  }}
+                >
+                  <Eye size={15} />
+                  {isOverlayMode ? '✅ Overlay Active (Front Cyan / Back Green)' : '👁️ Superimpose / Overlay Front & Back'}
+                </button>
+              )}
+
+            </div>
 
             {/* Direct 1-Click Print Box */}
             <div style={{ padding: '14px', borderRadius: '12px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', marginBottom: '20px' }}>
@@ -576,7 +961,9 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
           <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
             <div>
               <h3 style={{ fontSize: '1.15rem' }}>
-                {activeTab === 'duplex2page'
+                {isOverlayMode
+                  ? 'Registration Check: Superimposed Front (Cyan) & Back (Green)'
+                  : activeTab === 'duplex2page'
                   ? `Live Preview: Duplex Page ${duplexViewPage} of 2 (${duplexViewPage === 1 ? '8 FRONT Copies' : '8 BACK Copies - Duplex Mirrored'})`
                   : activeTab === 'combined16'
                   ? 'Live Preview: 8 Front + 8 Back on 1 Single A4 Page'
@@ -584,24 +971,36 @@ export default function PrintPreview({ frontCanvas, backCanvas, presetInfo, onOp
               </h3>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 300 DPI High Resolution Canvas (2480 × 3508 PX)
+                {(backOffsetY !== 0 || backOffsetX !== 0) && (
+                  <span style={{ color: '#38bdf8', marginLeft: '6px' }}>
+                    • Calibration Applied: Y={backOffsetY > 0 ? '+' : ''}{backOffsetY}mm, X={backOffsetX > 0 ? '+' : ''}{backOffsetX}mm
+                  </span>
+                )}
               </p>
             </div>
             
             {activeTab === 'duplex2page' && (
               <div style={{ display: 'flex', gap: '6px' }}>
                 <button
-                  className={`btn ${duplexViewPage === 1 ? 'btn-primary' : 'btn-secondary'}`}
-                  onClick={() => setDuplexViewPage(1)}
+                  className={`btn ${duplexViewPage === 1 && !isOverlayMode ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => { setDuplexViewPage(1); setIsOverlayMode(false); }}
                   style={{ fontSize: '0.8rem', padding: '4px 12px' }}
                 >
                   Page 1 (Fronts)
                 </button>
                 <button
-                  className={`btn ${duplexViewPage === 2 ? 'btn-primary' : 'btn-secondary'}`}
-                  onClick={() => setDuplexViewPage(2)}
+                  className={`btn ${duplexViewPage === 2 && !isOverlayMode ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => { setDuplexViewPage(2); setIsOverlayMode(false); }}
                   style={{ fontSize: '0.8rem', padding: '4px 12px' }}
                 >
                   Page 2 (Backs)
+                </button>
+                <button
+                  className={`btn ${isOverlayMode ? 'btn-success' : 'btn-secondary'}`}
+                  onClick={() => setIsOverlayMode(!isOverlayMode)}
+                  style={{ fontSize: '0.8rem', padding: '4px 12px' }}
+                >
+                  <Eye size={13} /> Overlay Check
                 </button>
               </div>
             )}

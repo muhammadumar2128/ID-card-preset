@@ -101,8 +101,8 @@ export function printDocumentViaIframe({ pageCanvases, title = 'Direct Print A4 
   iframe.style.position = 'fixed';
   iframe.style.top = '-10000px';
   iframe.style.left = '-10000px';
-  iframe.style.width = '0px';
-  iframe.style.height = '0px';
+  iframe.style.width = '210mm';
+  iframe.style.height = '297mm';
   iframe.style.border = 'none';
   document.body.appendChild(iframe);
 
@@ -124,7 +124,7 @@ export function printDocumentViaIframe({ pageCanvases, title = 'Direct Print A4 
         <style>
           @page {
             size: A4 portrait;
-            margin: 0mm;
+            margin: 0mm !important;
           }
           * {
             box-sizing: border-box;
@@ -132,29 +132,43 @@ export function printDocumentViaIframe({ pageCanvases, title = 'Direct Print A4 
             padding: 0;
           }
           html, body {
-            margin: 0;
-            padding: 0;
+            margin: 0 !important;
+            padding: 0 !important;
             background: #ffffff;
-            width: 100%;
-            height: 100%;
+            width: 210mm;
+            height: 297mm;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
           .print-page {
-            width: 100vw;
-            height: 100vh;
-            page-break-after: always;
-            page-break-inside: avoid;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            width: 210mm;
+            height: 297mm;
+            max-height: 297mm;
+            margin: 0 !important;
+            padding: 0 !important;
+            page-break-before: auto !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            display: block !important;
+            position: relative !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
           }
           .print-page:last-child {
-            page-break-after: auto;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
           }
-          img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            display: block;
+          .print-page img {
+            width: 210mm;
+            height: 297mm;
+            max-width: 210mm;
+            max-height: 297mm;
+            display: block !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            object-fit: fill !important;
           }
         </style>
       </head>
@@ -178,11 +192,8 @@ export function printDocumentViaIframe({ pageCanvases, title = 'Direct Print A4 
  * - 'front' (1 to 8 copies of front)
  * - 'back' (1 to 8 copies of back)
  * - 'paired' (front & back pairs, up to 4 pairs = 8 cards)
- */
-/**
- * GENERATE A4 MULTI-COPY SHEET (1 to 8 Copies at 300 DPI)
- * Standard A4: 2480px x 3508px (8.27" x 11.69" @ 300 DPI)
- * Provides 100% symmetric margins for perfect front/back duplex registration when printed.
+ * - 'combined16' (8 Fronts + 8 Backs on 1 Sheet)
+ * Supports offset calibration in mm to solve physical printer feed shifts.
  */
 export function generateA4MultiCopyCanvas({
   frontCanvas,
@@ -192,10 +203,22 @@ export function generateA4MultiCopyCanvas({
   layoutMode = 'front', // 'front' | 'back' | 'paired' | 'combined16'
   showCutLines = true,
   showLabel = true,
-  duplexMirror = true // Matches physical back slot to front slot when flipped on long edge
+  duplexMirror = true, // Matches physical back slot to front slot when flipped on long edge
+  backOffsetXmm = 0,
+  backOffsetYmm = 0,
+  frontOffsetXmm = 0,
+  frontOffsetYmm = 0
 }) {
   const a4Width = 2480;
   const a4Height = 3508;
+
+  // Convert mm to pixels at 300 DPI (1 inch = 25.4 mm -> ~11.811 px/mm)
+  const mmToPx = (mm) => Math.round(((Number(mm) || 0) / 25.4) * 300);
+
+  const backOffX = mmToPx(backOffsetXmm);
+  const backOffY = mmToPx(backOffsetYmm);
+  const frontOffX = mmToPx(frontOffsetXmm);
+  const frontOffY = mmToPx(frontOffsetYmm);
 
   const canvas = document.createElement('canvas');
   canvas.width = a4Width;
@@ -219,8 +242,8 @@ export function generateA4MultiCopyCanvas({
     for (let i = 0; i < 8; i++) {
       const col = i % 2;
       const row = Math.floor(i / 2);
-      const x = marginX16 + col * (cardW16 + gapX16);
-      const y = marginY16 + row * (cardH16 + gapY16);
+      const x = marginX16 + col * (cardW16 + gapX16) + frontOffX;
+      const y = marginY16 + row * (cardH16 + gapY16) + frontOffY;
 
       const srcCanvas = frontCanvas || backCanvas;
       if (srcCanvas) {
@@ -254,8 +277,8 @@ export function generateA4MultiCopyCanvas({
     for (let i = 0; i < 8; i++) {
       const col = 2 + (i % 2);
       const row = Math.floor(i / 2);
-      const x = marginX16 + col * (cardW16 + gapX16);
-      const y = marginY16 + row * (cardH16 + gapY16);
+      const x = marginX16 + col * (cardW16 + gapX16) + backOffX;
+      const y = marginY16 + row * (cardH16 + gapY16) + backOffY;
 
       const srcCanvas = backCanvas || frontCanvas;
       if (srcCanvas) {
@@ -293,8 +316,8 @@ export function generateA4MultiCopyCanvas({
     return canvas;
   }
 
-  const cardW = presetInfo.widthPx; // 990px
-  const cardH = presetInfo.heightPx; // 660px
+  const cardW = presetInfo.widthPx; // 990px for 3.3"
+  const cardH = presetInfo.heightPx; // 660px for 2.2"
 
   // Symmetrically balanced horizontal and vertical spacing
   const gapX = 160;
@@ -309,14 +332,24 @@ export function generateA4MultiCopyCanvas({
     let col = i % 2;
     const row = Math.floor(i / 2);
 
+    let isBack = false;
+    if (layoutMode === 'back') {
+      isBack = true;
+    } else if (layoutMode === 'paired') {
+      isBack = col === 1;
+    }
+
     // If printing Back side with duplex alignment, mirror column (Col 0 <-> Col 1)
     // so Back copy i aligns precisely on the back of Front copy i when flipped horizontally!
     if (layoutMode === 'back' && duplexMirror) {
       col = col === 0 ? 1 : 0;
     }
 
-    const x = marginX + col * (cardW + gapX);
-    const y = marginY + row * (cardH + gapY);
+    const currentOffX = isBack ? backOffX : frontOffX;
+    const currentOffY = isBack ? backOffY : frontOffY;
+
+    const x = marginX + col * (cardW + gapX) + currentOffX;
+    const y = marginY + row * (cardH + gapY) + currentOffY;
 
     let srcCanvas = null;
     let cardSideText = '';
@@ -370,8 +403,11 @@ export function generateA4MultiCopyCanvas({
   ctx.fillStyle = '#94a3b8';
   ctx.font = '18px sans-serif';
   ctx.textAlign = 'center';
+  const offsetLabel = (backOffsetXmm !== 0 || backOffsetYmm !== 0)
+    ? ` • Calibration Offset: ${backOffsetYmm > 0 ? '+' : ''}${backOffsetYmm}mm Y, ${backOffsetXmm > 0 ? '+' : ''}${backOffsetXmm}mm X`
+    : '';
   ctx.fillText(
-    `A4 ID Card Sheet • ${count} Copies • ${presetInfo.widthInches}" × ${presetInfo.heightInches}" (300 DPI Duplex-Aligned)`,
+    `A4 ID Card Sheet • ${count} Copies • ${presetInfo.widthInches}" × ${presetInfo.heightInches}" (300 DPI Duplex-Aligned${offsetLabel})`,
     a4Width / 2,
     marginY / 2
   );
